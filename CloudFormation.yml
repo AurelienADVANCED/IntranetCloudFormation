@@ -1,0 +1,131 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Infrastructure de l'Intranet - ProjetDeFous
+
+Parameters:
+  # Aucun paramètre spécifique n'est obligatoire ici, à moins que tu veuilles spécifier des noms
+
+Resources:
+  ### Cognito pour l'authentification ###
+  ProjetDeFousUserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: ProjetDeFousUserPool
+      AutoVerifiedAttributes:
+        - email
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireLowercase: true
+          RequireUppercase: true
+          RequireNumbers: true
+          RequireSymbols: true
+
+  ProjetDeFousUserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      UserPoolId: !Ref ProjetDeFousUserPool
+      ClientName: ProjetDeFousUserPoolClient
+      GenerateSecret: false
+
+  ProjetDeFousIdentityPool:
+    Type: AWS::Cognito::IdentityPool
+    Properties:
+      IdentityPoolName: ProjetDeFousIdentityPool
+      AllowUnauthenticatedIdentities: false
+      CognitoIdentityProviders:
+        - ClientId: !Ref ProjetDeFousUserPoolClient
+          ProviderName: !GetAtt ProjetDeFousUserPool.ProviderName
+
+  ### API Gateway ###
+  ProjetDeFousApiGateway:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: ProjetDeFousApi
+
+  ProjetDeFousApiCognitoAuthorizer:
+    Type: AWS::ApiGateway::Authorizer
+    Properties:
+      Name: ProjetDeFousCognitoAuthorizer
+      Type: COGNITO_USER_POOLS
+      IdentitySource: method.request.header.Authorization
+      ProviderARNs:
+        - !Sub "arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${ProjetDeFousUserPool}"
+      RestApiId: !Ref ProjetDeFousApiGateway
+
+  ProjetDeFousApiGatewayResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      ParentId: !GetAtt ProjetDeFousApiGateway.RootResourceId
+      PathPart: intranet
+      RestApiId: !Ref ProjetDeFousApiGateway
+
+  ProjetDeFousApiGatewayDeployment:
+    Type: AWS::ApiGateway::Deployment
+    Properties:
+      RestApiId: !Ref ProjetDeFousApiGateway
+      StageName: intranet
+
+  ProjetDeFousApiGatewayStage:
+    Type: AWS::ApiGateway::Stage
+    Properties:
+      StageName: intranet
+      RestApiId: !Ref ProjetDeFousApiGateway
+      DeploymentId: !Ref ProjetDeFousApiGatewayDeployment
+      Description: "Étape déployée pour le intranet"
+
+  ProjetDeFousLambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: ProjetDeFousLambdaExecutionRole
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: "sts:AssumeRole"
+      Policies:
+        - PolicyName: ProjetDeFousLambdaExecutionPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                Resource: "arn:aws:logs:*:*:*"
+
+  ProjetDeFousGetEmployesLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: ProjetDeFousGetEmployes
+      Handler: index.handler
+      Runtime: python3.8
+      Role: !GetAtt ProjetDeFousLambdaExecutionRole.Arn
+      Code:
+        ZipFile: |
+          def handler(event, context):
+              return {"statusCode": 200, "body": "Liste des employés"}
+
+  ProjetDeFousApiGatewayMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ProjetDeFousApiGateway
+      ResourceId: !Ref ProjetDeFousApiGatewayResource
+      HttpMethod: POST
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref ProjetDeFousApiCognitoAuthorizer
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ProjetDeFousGetEmployesLambda.Arn}/invocations"
+
+Outputs:
+  ProjetDeFousApiGatewayURL:
+    Description: URL de l'API Gateway pour l'intranet
+    Value: !Sub "https://${ProjetDeFousApiGateway}.execute-api.${AWS::Region}.amazonaws.com/intranet"
+
+  ProjetDeFousCognitoUserPoolId:
+    Description: ID du User Pool Cognito
+    Value: !Ref ProjetDeFousUserPool
