@@ -1,8 +1,5 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: Infrastructure de l'Intranet - ProjetDeFous
-
-Parameters:
-  # Aucun paramètre spécifique n'est obligatoire ici, à moins que tu veuilles spécifier des noms
+Description: Infrastructure pour la Zone ERP et Site Vitrine - ProjetDeFous
 
 Resources:
   ### Cognito pour l'authentification ###
@@ -59,12 +56,6 @@ Resources:
       PathPart: intranet
       RestApiId: !Ref ProjetDeFousApiGateway
 
-  ProjetDeFousApiGatewayDeployment:
-    Type: AWS::ApiGateway::Deployment
-    Properties:
-      RestApiId: !Ref ProjetDeFousApiGateway
-      StageName: intranet
-
   ProjetDeFousApiGatewayStage:
     Type: AWS::ApiGateway::Stage
     Properties:
@@ -72,6 +63,38 @@ Resources:
       RestApiId: !Ref ProjetDeFousApiGateway
       DeploymentId: !Ref ProjetDeFousApiGatewayDeployment
       Description: "Étape déployée pour le intranet"
+
+  ProjetDeFousApiGatewayDeployment:
+    Type: AWS::ApiGateway::Deployment
+    Properties:
+      RestApiId: !Ref ProjetDeFousApiGateway
+      StageName: intranet
+
+  ProjetDeFousApiGatewayMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ProjetDeFousApiGateway
+      ResourceId: !Ref ProjetDeFousApiGatewayResource
+      HttpMethod: POST
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref ProjetDeFousApiCognitoAuthorizer
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ProjetDeFousGetEmployesLambda.Arn}/invocations"
+
+  ### Fonctions Lambda ###
+  ProjetDeFousGetEmployesLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: ProjetDeFousGetEmployes
+      Handler: index.handler
+      Runtime: python3.8
+      Role: !GetAtt ProjetDeFousLambdaExecutionRole.Arn
+      Code:
+        ZipFile: |
+          def handler(event, context):
+              return {"statusCode": 200, "body": "Liste des employés"}
 
   ProjetDeFousLambdaExecutionRole:
     Type: AWS::IAM::Role
@@ -96,36 +119,10 @@ Resources:
                   - "logs:PutLogEvents"
                 Resource: "arn:aws:logs:*:*:*"
 
-  ProjetDeFousGetEmployesLambda:
-    Type: AWS::Lambda::Function
-    Properties:
-      FunctionName: ProjetDeFousGetEmployes
-      Handler: index.handler
-      Runtime: python3.8
-      Role: !GetAtt ProjetDeFousLambdaExecutionRole.Arn
-      Code:
-        ZipFile: |
-          def handler(event, context):
-              return {"statusCode": 200, "body": "Liste des employés"}
-
-  ProjetDeFousApiGatewayMethod:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      RestApiId: !Ref ProjetDeFousApiGateway
-      ResourceId: !Ref ProjetDeFousApiGatewayResource
-      HttpMethod: POST
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref ProjetDeFousApiCognitoAuthorizer
-      Integration:
-        Type: AWS_PROXY
-        IntegrationHttpMethod: POST
-        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ProjetDeFousGetEmployesLambda.Arn}/invocations"
-
 Outputs:
   ProjetDeFousApiGatewayURL:
     Description: URL de l'API Gateway pour l'intranet
     Value: !Sub "https://${ProjetDeFousApiGateway}.execute-api.${AWS::Region}.amazonaws.com/intranet"
-
   ProjetDeFousCognitoUserPoolId:
     Description: ID du User Pool Cognito
     Value: !Ref ProjetDeFousUserPool
