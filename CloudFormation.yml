@@ -125,4 +125,4 @@ Outputs:
     Value: !Sub "https://${ProjetDeFousApiGateway}.execute-api.${AWS::Region}.amazonaws.com/intranet"
   ProjetDeFousCognitoUserPoolId:
     Description: ID du User Pool Cognito
-    Value: !Ref ProjetDeFousUserPool
+    Value: !Ref ProjetDeFousUserPool 
