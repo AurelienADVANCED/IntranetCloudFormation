@@ -73,7 +73,7 @@ Resources:
   ProjetDeFousLambdaExecutionRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: ProjetDeFousLambdaExecutionRole
+      RoleName: !Sub "ProjetDeFousLambdaExecutionRole-${AWS::StackName}"
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -92,6 +92,7 @@ Resources:
                   - "logs:CreateLogStream"
                   - "logs:PutLogEvents"
                 Resource: "arn:aws:logs:*:*:*"
+
 
   ProjetDeFousGetEmployesLambda:
     Type: AWS::Lambda::Function
