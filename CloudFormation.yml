@@ -1,9 +1,6 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: Infrastructure de l'Intranet - ProjetDeFous
 
-Parameters:
-  # Aucun paramètre spécifique n'est obligatoire ici, à moins que tu veuilles spécifier des noms
-
 Resources:
   ### Cognito pour l'authentification ###
   ProjetDeFousUserPool:
